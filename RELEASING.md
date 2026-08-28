@@ -159,7 +159,7 @@ git status                       # NO .env / dist / node_modules / generated-spe
 git commit -m "chore: initial import — llm-sdk-ts 1.0.0"
 
 # 2. create the PUBLIC repo (no push yet) and add the npm token
-gh repo create shathiskannan/llm-sdk-ts --public --source . --remote origin
+gh repo create ShathisKannan19/llm-sdk-ts --public --source . --remote origin
 gh secret set NPM_TOKEN          # paste the npm granular token when prompted
 
 # 3. push main  ->  Release workflow publishes 1.0.0, tags v1.0.0, makes the Release
