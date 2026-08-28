@@ -1,0 +1,90 @@
+{
+  "name": "llm-sdk-ts",
+  "version": "1.0.0",
+  "description": "Provider-agnostic TypeScript SDK for LLM text, vision, audio, speech, tool calling, and structured output. One typed API across OpenAI, Anthropic, and Google Gemini.",
+  "author": "Shathis Kannan V",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shathiskannan/llm-sdk-ts.git"
+  },
+  "homepage": "https://github.com/shathiskannan/llm-sdk-ts#readme",
+  "bugs": {
+    "url": "https://github.com/shathiskannan/llm-sdk-ts/issues"
+  },
+  "keywords": [
+    "llm",
+    "ai",
+    "genai",
+    "generative-ai",
+    "ai-sdk",
+    "llm-sdk",
+    "sdk",
+    "typescript",
+    "provider-agnostic",
+    "multimodal",
+    "openai",
+    "gpt",
+    "anthropic",
+    "claude",
+    "gemini",
+    "google-gemini",
+    "chat",
+    "ai-agents",
+    "tool-calling",
+    "function-calling",
+    "structured-output",
+    "json-mode",
+    "vision",
+    "speech-to-text",
+    "text-to-speech",
+    "transcription"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "npm run clean && npm run build:js && npm run build:types",
+    "build:js": "tsup src/llm/index.ts --format esm --out-dir dist",
+    "build:types": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.check.json",
+    "clean": "rm -rf dist",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "verify": "npm run typecheck && npm test && npm run build",
+    "check:live": "tsx scripts/live-check.ts",
+    "prepare": "git config core.hooksPath .githooks || true",
+    "prepublishOnly": "npm run verify"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.111.0",
+    "@google/genai": "^2.11.0",
+    "openai": "^6.46.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "tsup": "^8.5.0",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

@@ -1,0 +1,148 @@
+name: Release
+
+# The run title in the Actions list. `run-name` is resolved before any job
+# starts, so it can only use `github`/`inputs` contexts — not the resolved
+# version. The `v<version>` label is added to the job names below instead.
+run-name: >-
+  Release: ${{ github.event.head_commit.message || format('manual dispatch of {0}', github.ref_name) }}
+  — @${{ github.actor }}
+
+# Fully automatic. A merge to `main` that changes package.json is the release
+# signal: if `v<version>` has not been released yet, this workflow runs the test
+# matrix, publishes to npm (with provenance), creates the `v<version>` git tag,
+# and creates the GitHub Release from the matching CHANGELOG section.
+#
+# You never run `git tag` or use the Releases UI. `workflow_dispatch` is a manual
+# fallback to re-run a release for whatever version is in package.json.
+
+on:
+  push:
+    branches: [main]
+    paths: ["package.json"]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.decide.outputs.release }}
+      version: ${{ steps.decide.outputs.version }}
+      tag: ${{ steps.decide.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: decide
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="v$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "Tag $TAG already exists — nothing to release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "No tag $TAG yet — will release."
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  verify:
+    name: Verify v${{ needs.check.outputs.version }} · Node ${{ matrix.node-version }}
+    needs: check
+    if: needs.check.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        node-version: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+      - run: npm pack --dry-run
+
+  publish:
+    name: Publish v${{ needs.check.outputs.version }} to npm
+    needs: [check, verify]
+    if: needs.check.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the tag, create the GitHub Release
+      id-token: write # npm provenance (OIDC)
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      TAG: ${{ needs.check.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      - name: CHANGELOG has a dated section for this version
+        run: |
+          grep -qE "^## \[${VERSION}\] - [0-9]{4}-[0-9]{2}-[0-9]{2}" CHANGELOG.md \
+            || { echo "::error::CHANGELOG.md has no '## [${VERSION}] - YYYY-MM-DD' section"; exit 1; }
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm pack --dry-run
+
+      - name: Publish to npm (skip if this version is already published)
+        run: |
+          ON_NPM="$(npm view "llm-sdk-ts@${VERSION}" version 2>/dev/null || true)"
+          if [ "$ON_NPM" = "$VERSION" ]; then
+            echo "llm-sdk-ts@${VERSION} is already on npm — skipping publish."
+          else
+            npm publish --provenance --access public
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Tag the release commit
+        run: |
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "tag ${TAG} already exists — skipping"
+          else
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "${TAG}" -m "${TAG}"
+            git push origin "${TAG}"
+          fi
+
+      - name: Release notes from CHANGELOG
+        run: |
+          awk -v v="## [${VERSION}]" '
+            index($0, v) == 1 { flag = 1; next }
+            /^## \[/ && flag  { flag = 0 }
+            flag              { print }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          [ -s RELEASE_NOTES.md ] || echo "See CHANGELOG.md" > RELEASE_NOTES.md
+          cat RELEASE_NOTES.md
+
+      - name: Create or update the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release edit "${TAG}" --title "${TAG}" --notes-file RELEASE_NOTES.md
+          else
+            gh release create "${TAG}" --title "${TAG}" --notes-file RELEASE_NOTES.md --target "${GITHUB_SHA}"
+          fi
