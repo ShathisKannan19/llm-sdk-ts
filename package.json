@@ -6,11 +6,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/shathiskannan/llm-sdk-ts.git"
+    "url": "git+https://github.com/ShathisKannan19/llm-sdk-ts.git"
   },
-  "homepage": "https://github.com/shathiskannan/llm-sdk-ts#readme",
+  "homepage": "https://github.com/ShathisKannan19/llm-sdk-ts#readme",
   "bugs": {
-    "url": "https://github.com/shathiskannan/llm-sdk-ts/issues"
+    "url": "https://github.com/ShathisKannan19/llm-sdk-ts/issues"
   },
   "keywords": [
     "llm",
