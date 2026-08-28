@@ -1,0 +1,22 @@
+#!/bin/sh
+# Pre-push validation for llm-sdk-ts: full build (bundle + d.ts) and a publish
+# dry-run, so a broken tarball never reaches the remote.
+# Bypass in an emergency with: git push --no-verify
+set -e
+
+run() {
+  label=$1
+  shift
+  printf '[pre-push] %s ... ' "$label"
+  if out=$("$@" 2>&1); then
+    printf 'ok\n'
+  else
+    printf 'FAILED\n\n%s\n' "$out"
+    exit 1
+  fi
+}
+
+run "build" npm run --silent build
+run "pack dry-run" npm pack --dry-run
+
+printf '[pre-push] passed\n'
